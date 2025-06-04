@@ -48,6 +48,13 @@ Print usage statement
 Allow for creating archives with more than one image.  Additional names are interpreted as images instead of tags.  Only supported for **--format=docker-archive**.
 The default for this option can be modified via the `multi_image_archive="true"|"false"` flag in containers.conf.
 
+#### **--no-prefix**
+
+Do not include the `localhost/` prefix for unqualified image names in the saved archive.
+By default, if an image is saved using a name that does not include a domain (e.g., `myimage:latest`),
+it is saved in the archive with the `localhost/` prefix (e.g., `localhost/myimage:latest`).
+This flag prevents that prefixing.
+
 #### **--output**, **-o**=*file*
 
 Write to a file, default is STDOUT
