@@ -3,7 +3,12 @@
 package integration
 
 import (
+	"archive/tar"
+	"encoding/json"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -13,6 +18,42 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gexec"
 )
+
+// Helper function (can be defined within the test or globally in the file if used elsewhere)
+extractRepoTagsFromDockerArchive := func(tarPath string) ([]string, error) {
+	file, err := os.Open(tarPath)
+	if err != nil {
+		return nil, fmt.Errorf("opening tarball %s: %w", tarPath, err)
+	}
+	defer file.Close()
+
+	tarReader := tar.NewReader(file)
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break // End of archive
+		}
+		if err != nil {
+			return nil, fmt.Errorf("reading tar header: %w", err)
+		}
+
+		if header.Name == "manifest.json" {
+			var manifests []struct {
+				Config   string
+				RepoTags []string
+				Layers   []string
+			}
+			if err := json.NewDecoder(tarReader).Decode(&manifests); err != nil {
+				return nil, fmt.Errorf("decoding manifest.json: %w", err)
+			}
+			if len(manifests) > 0 {
+				return manifests[0].RepoTags, nil
+			}
+			return nil, fmt.Errorf("manifest.json is empty or not in expected format")
+		}
+	}
+	return nil, fmt.Errorf("manifest.json not found in tarball %s", tarPath)
+}
 
 var _ = Describe("Podman images", func() {
 
@@ -547,4 +588,42 @@ LABEL xyz="bar"
 		Expect(session.OutputToString()).To(ContainSubstring("test-abc-xyz"))
 	})
 
+	It("podman image save --no-prefix", func() {
+		imageToSave := "no_prefix_save_test:latest"
+
+		pullSession := podmanTest.Podman([]string{"pull", ALPINE})
+		pullSession.WaitWithDefaultTimeout()
+		Expect(pullSession).Should(ExitCleanly())
+
+		tagSession := podmanTest.Podman([]string{"tag", ALPINE, imageToSave})
+		tagSession.WaitWithDefaultTimeout()
+		Expect(tagSession).Should(ExitCleanly())
+		defer podmanTest.Podman([]string{"rmi", imageToSave}).WaitWithDefaultTimeout()
+
+		// Create temp files for save output
+		tmpDir := GinkgoT().TempDir()
+		tarPathNoPrefix := filepath.Join(tmpDir, "no_prefix.tar")
+		tarPathDefault := filepath.Join(tmpDir, "default_prefix.tar")
+
+		// Test with --no-prefix
+		saveNoPrefix := podmanTest.Podman([]string{"image", "save", "--no-prefix", "-o", tarPathNoPrefix, imageToSave})
+		saveNoPrefix.WaitWithDefaultTimeout()
+		Expect(saveNoPrefix).Should(ExitCleanly())
+
+		repoTagsNoPrefix, err := extractRepoTagsFromDockerArchive(tarPathNoPrefix)
+		Expect(err).ToNot(HaveOccurred(), "Extracting tags from no_prefix.tar")
+		Expect(repoTagsNoPrefix).To(ContainElement(imageToSave), "Should contain the non-prefixed tag")
+		Expect(repoTagsNoPrefix).ToNot(ContainElement("localhost/" + imageToSave), "Should not contain the localhost-prefixed tag")
+
+		// Test default behavior (without --no-prefix)
+		saveDefault := podmanTest.Podman([]string{"image", "save", "-o", tarPathDefault, imageToSave})
+		saveDefault.WaitWithDefaultTimeout()
+		Expect(saveDefault).Should(ExitCleanly())
+
+		repoTagsDefault, err := extractRepoTagsFromDockerArchive(tarPathDefault)
+		Expect(err).ToNot(HaveOccurred(), "Extracting tags from default_prefix.tar")
+		Expect(repoTagsDefault).To(ContainElement("localhost/" + imageToSave), "Should contain the localhost-prefixed tag")
+		// It might also contain the non-prefixed one depending on how save works,
+		// but the primary check is for the prefixed one.
+	})
 })

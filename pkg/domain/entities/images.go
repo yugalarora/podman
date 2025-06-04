@@ -308,6 +308,8 @@ type ImageSaveOptions struct {
 	// Quiet - suppress output when copying images
 	Quiet           bool
 	SignaturePolicy string
+	// NoPrefix tells the image saver to not add the "localhost/" prefix if no domain is specified.
+	NoPrefix bool
 }
 
 // ImageScpOptions provides options for ImageEngine.Scp()
