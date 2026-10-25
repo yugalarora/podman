@@ -27,6 +27,33 @@ type SaveOptions struct {
 	// AdditionalTags for the saved image.  Incompatible when saving
 	// multiple images.
 	AdditionalTags []string
+	// NoPrefix records images that are only known under the implicit
+	// "localhost" registry without that prefix, such that an image stored
+	// locally as "localhost/foo:latest" is written to the archive as
+	// "foo:latest".  Names carrying any other registry are left alone.
+	NoPrefix bool
+}
+
+// stripLocalhostPrefix removes the implicit "localhost" domain from ref.  It
+// reports false if ref is not in the "localhost" namespace, in which case the
+// caller must keep using ref as-is.
+func stripLocalhostPrefix(ref reference.Named) (reference.Named, bool) {
+	if reference.Domain(ref) != "localhost" {
+		return nil, false
+	}
+	stripped, err := reference.WithName(reference.Path(ref))
+	if err != nil {
+		return nil, false
+	}
+	tagged, withTag := ref.(reference.NamedTagged)
+	if !withTag {
+		return stripped, true
+	}
+	strippedTagged, err := reference.WithTag(stripped, tagged.Tag())
+	if err != nil {
+		return nil, false
+	}
+	return strippedTagged, true
 }
 
 // Save saves one or more images indicated by `names` in the specified `format`
@@ -90,6 +117,13 @@ func (r *Runtime) saveSingleImage(ctx context.Context, name, format, path string
 	var tag string
 	if !strings.HasPrefix(image.ID(), imageName) {
 		tag = imageName
+		if options.NoPrefix {
+			if named, err := reference.ParseNamed(imageName); err == nil {
+				if stripped, ok := stripLocalhostPrefix(named); ok {
+					tag = stripped.String()
+				}
+			}
+		}
 	}
 
 	srcRef, err := image.StorageReference()
@@ -144,6 +178,11 @@ func (r *Runtime) saveDockerArchive(ctx context.Context, names []string, path st
 	for _, tag := range options.AdditionalTags {
 		named, err := NormalizeName(tag)
 		if err == nil {
+			if options.NoPrefix {
+				if stripped, ok := stripLocalhostPrefix(named); ok {
+					named = stripped
+				}
+			}
 			tagged, withTag := named.(reference.NamedTagged)
 			if !withTag {
 				return fmt.Errorf("invalid additional tag %q: normalized to untagged %q", tag, named.String())
@@ -178,6 +217,11 @@ func (r *Runtime) saveDockerArchive(ctx context.Context, names []string, path st
 		// (which it should unless we looked it up by ID).
 		named, err := reference.ParseNamed(imageName)
 		if err == nil {
+			if options.NoPrefix {
+				if stripped, ok := stripLocalhostPrefix(named); ok {
+					named = stripped
+				}
+			}
 			tagged, withTag := named.(reference.NamedTagged)
 			if withTag {
 				local.tags = append(local.tags, tagged)
