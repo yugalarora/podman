@@ -91,6 +91,7 @@ func saveFlags(cmd *cobra.Command) {
 
 	flags.BoolVarP(&saveOpts.Quiet, "quiet", "q", false, "Suppress the output")
 	flags.BoolVarP(&saveOpts.MultiImageArchive, "multi-image-archive", "m", containerConfig.ContainersConfDefaultsRO.Engine.MultiImageArchive, "Interpret additional arguments as images not tags and create a multi-image-archive (only for docker-archive)")
+	flags.BoolVar(&saveOpts.NoPrefix, "no-prefix", false, "Omit the implicit 'localhost/' prefix from the image names recorded in the archive")
 
 	if !registry.IsRemote() {
 		flags.StringVar(&saveOpts.SignaturePolicy, "signature-policy", "", "Path to a signature-policy file")

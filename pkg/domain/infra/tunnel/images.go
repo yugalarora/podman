@@ -319,6 +319,7 @@ func (ir *ImageEngine) Save(_ context.Context, nameOrID string, tags []string, o
 	)
 	options := new(images.ExportOptions).WithFormat(opts.Format).WithCompress(opts.Compress)
 	options = options.WithOciAcceptUncompressedLayers(opts.OciAcceptUncompressedLayers)
+	options = options.WithNoPrefix(opts.NoPrefix)
 
 	switch opts.Format {
 	case "oci-dir", "docker-dir":

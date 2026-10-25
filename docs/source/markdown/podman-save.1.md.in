@@ -45,6 +45,18 @@ Print usage statement
 Allow for creating archives with more than one image.  Additional names are interpreted as images instead of tags.  Only supported for **--format=docker-archive**.
 The default for this option can be modified via the `multi_image_archive="true"|"false"` flag in containers.conf.
 
+#### **--no-prefix**
+
+Omit the implicit `localhost/` prefix from the image names recorded in the archive.
+
+Images that are built or tagged locally under an unqualified name, such as `myimage:latest`, are stored
+under the implicit `localhost` registry, so they are normally recorded in the archive as
+`localhost/myimage:latest`. This option records them as `myimage:latest` instead, which is what consumers
+such as **minikube image load** and **cri-o** expect when they look the image up by its plain name.
+
+Names that carry any other registry are left untouched, including names such as `localhost:5000/myimage`,
+which refer to a real registry listening on localhost rather than to the implicit namespace.
+
 #### **--output**, **-o**=*file*
 
 Write to a file, default is STDOUT

@@ -3,7 +3,10 @@
 package integration
 
 import (
+	"archive/tar"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -234,6 +237,47 @@ default-docker:
 		}
 		multiImageSave(podmanTest, ids)
 	})
+	It("podman save --no-prefix", func() {
+		localName := "no-prefix-test:latest"
+		tag := podmanTest.Podman([]string{"tag", ALPINE, localName})
+		tag.WaitWithDefaultTimeout()
+		Expect(tag).Should(ExitCleanly())
+
+		// Sanity check: without the option the image is recorded under
+		// the implicit localhost registry.
+		outfile := filepath.Join(podmanTest.TempDir, "prefixed.tar")
+		save := podmanTest.Podman([]string{"save", "-q", "-o", outfile, localName})
+		save.WaitWithDefaultTimeout()
+		Expect(save).Should(ExitCleanly())
+		Expect(dockerArchiveRepoTags(outfile)).To(ConsistOf("localhost/" + localName))
+
+		outfile = filepath.Join(podmanTest.TempDir, "no-prefix.tar")
+		save = podmanTest.Podman([]string{"save", "-q", "--no-prefix", "-o", outfile, localName})
+		save.WaitWithDefaultTimeout()
+		Expect(save).Should(ExitCleanly())
+		Expect(dockerArchiveRepoTags(outfile)).To(ConsistOf(localName))
+	})
+
+	It("podman save --no-prefix leaves a qualified name alone", func() {
+		outfile := filepath.Join(podmanTest.TempDir, "qualified.tar")
+		save := podmanTest.Podman([]string{"save", "-q", "--no-prefix", "-o", outfile, ALPINE})
+		save.WaitWithDefaultTimeout()
+		Expect(save).Should(ExitCleanly())
+		Expect(dockerArchiveRepoTags(outfile)).To(ConsistOf(ALPINE))
+	})
+
+	It("podman save --no-prefix oci-archive", func() {
+		localName := "no-prefix-oci-test:latest"
+		tag := podmanTest.Podman([]string{"tag", ALPINE, localName})
+		tag.WaitWithDefaultTimeout()
+		Expect(tag).Should(ExitCleanly())
+
+		outfile := filepath.Join(podmanTest.TempDir, "no-prefix-oci.tar")
+		save := podmanTest.Podman([]string{"save", "-q", "--format", "oci-archive", "--no-prefix", "-o", outfile, localName})
+		save.WaitWithDefaultTimeout()
+		Expect(save).Should(ExitCleanly())
+		Expect(ociArchiveRefNames(outfile)).To(ConsistOf(localName))
+	})
 })
 
 // Create a multi-image archive, remove all images, load it and
@@ -265,4 +309,62 @@ func multiImageSave(podmanTest *PodmanTestIntegration, images []string) {
 		session.WaitWithDefaultTimeout()
 		Expect(session).Should(ExitCleanly())
 	}
+}
+
+// readFileFromTar returns the contents of the named file in the tar archive at
+// tarPath.
+func readFileFromTar(tarPath, name string) []byte {
+	GinkgoHelper()
+
+	f, err := os.Open(tarPath)
+	Expect(err).ToNot(HaveOccurred())
+	defer f.Close()
+
+	reader := tar.NewReader(f)
+	for {
+		header, err := reader.Next()
+		if err == io.EOF {
+			break
+		}
+		Expect(err).ToNot(HaveOccurred())
+		if header.Name == name {
+			contents, err := io.ReadAll(reader)
+			Expect(err).ToNot(HaveOccurred())
+			return contents
+		}
+	}
+	Fail(fmt.Sprintf("%s not found in %s", name, tarPath))
+	return nil
+}
+
+// dockerArchiveRepoTags returns the RepoTags of the single image in the
+// docker-archive at tarPath.
+func dockerArchiveRepoTags(tarPath string) []string {
+	GinkgoHelper()
+
+	var manifest []struct {
+		RepoTags []string
+	}
+	Expect(json.Unmarshal(readFileFromTar(tarPath, "manifest.json"), &manifest)).To(Succeed())
+	Expect(manifest).To(HaveLen(1))
+	return manifest[0].RepoTags
+}
+
+// ociArchiveRefNames returns the org.opencontainers.image.ref.name annotation
+// of every manifest in the oci-archive at tarPath.
+func ociArchiveRefNames(tarPath string) []string {
+	GinkgoHelper()
+
+	var index struct {
+		Manifests []struct {
+			Annotations map[string]string
+		}
+	}
+	Expect(json.Unmarshal(readFileFromTar(tarPath, "index.json"), &index)).To(Succeed())
+
+	names := []string{}
+	for _, m := range index.Manifests {
+		names = append(names, m.Annotations["org.opencontainers.image.ref.name"])
+	}
+	return names
 }

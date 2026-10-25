@@ -299,6 +299,9 @@ type ImageSaveOptions struct {
 	// Quiet - suppress output when copying images
 	Quiet           bool
 	SignaturePolicy string
+	// NoPrefix - record images that are only known under the implicit
+	// "localhost" registry without that prefix.
+	NoPrefix bool
 }
 
 // ImageScpOptions provides options for ImageEngine.Scp()

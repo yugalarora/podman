@@ -261,6 +261,7 @@ func ExportImages(w http.ResponseWriter, r *http.Request) {
 		Compress                    bool     `schema:"compress"`
 		Format                      string   `schema:"format"`
 		OciAcceptUncompressedLayers bool     `schema:"ociAcceptUncompressedLayers"`
+		NoPrefix                    bool     `schema:"noPrefix"`
 		References                  []string `schema:"references"`
 	}{
 		Format: define.OCIArchive,
@@ -315,6 +316,7 @@ func ExportImages(w http.ResponseWriter, r *http.Request) {
 		Format:                      query.Format,
 		MultiImageArchive:           len(query.References) > 1,
 		OciAcceptUncompressedLayers: query.OciAcceptUncompressedLayers,
+		NoPrefix:                    query.NoPrefix,
 		Output:                      output,
 	}
 

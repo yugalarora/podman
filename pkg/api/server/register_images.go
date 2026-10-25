@@ -1376,6 +1376,10 @@ func (s *APIServer) registerImagesHandlers(r *mux.Router) error {
 	//    name: ociAcceptUncompressedLayers
 	//    type: boolean
 	//    description: accept uncompressed layers when copying OCI images
+	//  - in: query
+	//    name: noPrefix
+	//    type: boolean
+	//    description: omit the implicit localhost prefix from the image names recorded in the archive
 	// produces:
 	// - application/json
 	// responses:

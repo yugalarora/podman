@@ -61,3 +61,18 @@ func (o *ExportOptions) GetOciAcceptUncompressedLayers() bool {
 	}
 	return *o.OciAcceptUncompressedLayers
 }
+
+// WithNoPrefix set field NoPrefix to given value
+func (o *ExportOptions) WithNoPrefix(value bool) *ExportOptions {
+	o.NoPrefix = &value
+	return o
+}
+
+// GetNoPrefix returns value of field NoPrefix
+func (o *ExportOptions) GetNoPrefix() bool {
+	if o.NoPrefix == nil {
+		var z bool
+		return z
+	}
+	return *o.NoPrefix
+}

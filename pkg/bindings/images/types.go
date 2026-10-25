@@ -82,6 +82,9 @@ type ExportOptions struct {
 	Format *string
 	// Accept uncompressed layers when copying OCI images.
 	OciAcceptUncompressedLayers *bool
+	// NoPrefix omits the implicit "localhost/" prefix from the image names
+	// recorded in the archive.
+	NoPrefix *bool
 }
 
 // PruneOptions are optional options for pruning images
